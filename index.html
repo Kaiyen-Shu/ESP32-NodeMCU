@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arduino 遊戲控制器</title>
+    <script src="config.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .panel {
+            background: white;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        button {
+            padding: 12px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .primary:hover {
+            background: #0056b3;
+        }
+
+        .primary:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .success {
+            background: #28a745;
+            color: white;
+        }
+
+        .matrix {
+            display: grid;
+            grid-template-columns: repeat(3, 80px);
+            gap: 8px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .btn {
+            width: 80px;
+            height: 80px;
+            background: #f8f9fa;
+            border: 3px solid #dee2e6;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+
+        .btn.active {
+            background: #28a745;
+            color: white;
+            border-color: #1e7e34;
+            transform: scale(0.95);
+        }
+
+        /* 新增：功能按鈕反白效果 */
+        .btn.highlight {
+            background: #ffc107 !important;
+            color: #212529 !important;
+            border-color: #e0a800 !important;
+            box-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+            animation: flash 0.5s ease-in-out;
+        }
+
+        @keyframes flash {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .btn.x {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn.o {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn.sequence {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn.correct {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn.wrong {
+            background: #dc3545;
+            color: white;
+        }
+
+        .game-container {
+            display: none;
+            padding: 20px;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .game-container.active {
+            display: block;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+
+        .connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .game-info {
+            text-align: center;
+            padding: 15px;
+            background: #e9ecef;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .score {
+            display: flex;
+            justify-content: space-around;
+            margin: 15px 0;
+        }
+
+        .score-item {
+            text-align: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            min-width: 100px;
+        }
+
+        .reaction-area {
+            text-align: center;
+            padding: 40px;
+            border: 3px dashed #dee2e6;
+            border-radius: 10px;
+            margin: 20px 0;
+            background: #f8f9fa;
+        }
+
+        .reaction-area.ready {
+            background: #fff3cd;
+            border-color: #ffc107;
+        }
+
+        .reaction-area.go {
+            background: #d4edda;
+            border-color: #28a745;
+        }
+
+        .number-input {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .number-display {
+            font-size: 48px;
+            font-weight: bold;
+            color: #007bff;
+            min-width: 150px;
+            text-align: center;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 15px 0;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .pulse {
+            animation: pulse 0.5s;
+        }
+
+        .connecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        /* 特殊按鈕專用樣式 */
+        .special-button {
+            padding: 15px 25px;
+            margin: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Reset 按鈕樣式 */
+        .reset-btn {
+            background: linear-gradient(145deg, #dc3545, #c82333);
+            color: white;
+            border-color: #bd2130;
+        }
+
+        .reset-btn.active {
+            background: linear-gradient(145deg, #fff, #f8f9fa);
+            color: #dc3545;
+            border-color: #dc3545;
+            box-shadow: 0 0 20px rgba(220, 53, 69, 0.5);
+            transform: scale(1.1);
+        }
+
+        /* Game Select 按鈕樣式 */
+        .game-select-btn {
+            background: linear-gradient(145deg, #ffc107, #e0a800);
+            color: #212529;
+            border-color: #d39e00;
+        }
+
+        .game-select-btn.active {
+            background: linear-gradient(145deg, #fff, #f8f9fa);
+            color: #ffc107;
+            border-color: #ffc107;
+            box-shadow: 0 0 20px rgba(255, 193, 7, 0.5);
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        /* Confirm 按鈕樣式 */
+        .confirm-btn {
+            background: linear-gradient(145deg, #28a745, #1e7e34);
+            color: white;
+            border-color: #1c7430;
+        }
+
+        .confirm-btn.active {
+            background: linear-gradient(145deg, #fff, #f8f9fa);
+            color: #28a745;
+            border-color: #28a745;
+            box-shadow: 0 0 20px rgba(40, 167, 69, 0.5);
+            transform: scale(1.1);
+        }
+
+        /* 按鈕按下動畫 */
+        @keyframes buttonPress {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(0.95);
+            }
+
+            100% {
+                transform: scale(1.05);
+            }
+        }
+
+        .button-pressed {
+            animation: buttonPress 0.3s ease;
+        }
+
+        /* 波紋效果 */
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.6);
+            transform: scale(0);
+            animation: ripple-animation 0.6s linear;
+        }
+
+        @keyframes ripple-animation {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+
+        /* 提示文字動畫 */
+        .action-hint {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            font-size: 18px;
+            font-weight: bold;
+            animation: fadeInOut 1.5s ease;
+        }
+
+        @keyframes fadeInOut {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.8);
+            }
+
+            20% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            80% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.8);
+            }
+        }
+
+        /* 遊戲選擇彈出視窗 */
+        .game-selector-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .game-selector-overlay.show {
+            display: flex;
+        }
+
+        .game-selector {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 90%;
+            animation: slideIn 0.3s ease;
+        }
+
+        .game-selector h2 {
+            text-align: center;
+            margin: 0 0 20px 0;
+            color: #333;
+            font-size: 24px;
+        }
+
+        .game-options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .game-option {
+            background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .game-option:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .game-option.selected {
+            border-color: #007bff;
+            background: linear-gradient(145deg, #e3f2fd, #bbdefb);
+            transform: scale(1.05);
+        }
+
+        .game-option.highlighted {
+            animation: pulse 1s infinite;
+            border-color: #ffc107;
+            background: linear-gradient(145deg, #fff3cd, #ffeaa7);
+        }
+
+        .game-option .game-number {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: #007bff;
+            color: white;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .game-option .game-icon {
+            font-size: 30px;
+            margin-bottom: 10px;
+        }
+
+        .game-option .game-name {
+            font-weight: bold;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .game-option .game-description {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.3;
+        }
+
+        .selector-instructions {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .selector-instructions .instruction-title {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 8px;
+        }
+
+        .selector-instructions .instruction-text {
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        .selector-controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .selector-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .selector-btn.confirm {
+            background: #28a745;
+            color: white;
+        }
+
+        .selector-btn.confirm:hover {
+            background: #218838;
+        }
+
+        .selector-btn.cancel {
+            background: #6c757d;
+            color: white;
+        }
+
+        .selector-btn.cancel:hover {
+            background: #545b62;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8) translateY(-50px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(255, 193, 7, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+            }
+        }
+
+        /* 數字鍵提示動畫 */
+        .number-key-hint {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #007bff;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            animation: bounceHint 2s infinite;
+        }
+
+        @keyframes bounceHint {
+
+            0%,
+            20%,
+            50%,
+            80%,
+            100% {
+                transform: translateX(-50%) translateY(0);
+            }
+
+            40% {
+                transform: translateX(-50%) translateY(-10px);
+            }
+
+            60% {
+                transform: translateX(-50%) translateY(-5px);
+            }
+        }
+
+        /* 調試面板樣式 */
+        .debug-panel {
+            background: #f1f3f4;
+            border-left: 5px solid #ff9800;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .debug-panel h3 {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+            color: #333;
+        }
+
+        .debug-panel button {
+            padding: 10px 15px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .debug-panel .primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .debug-panel .primary:hover {
+            background: #0056b3;
+        }
+
+        .debug-panel .danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .debug-panel .success {
+            background: #28a745;
+            color: white;
+        }
+
+        .debug-info {
+            font-family: monospace;
+            font-size: 12px;
+            background: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🎮 Arduino 遊戲控制器</h1>
+
+    <!-- 連接面板 -->
+    <div class="panel">
+        <h3>🔗 連接設定</h3>
+        <input type="text" id="ip" value="192.168.1.100" placeholder="Arduino IP"
+            style="padding: 10px; margin-right: 10px; border: 1px solid #ddd; border-radius: 4px;">
+        <button class="primary" id="connectBtn" onclick="connect()">連接</button>
+        <button class="danger" id="disconnectBtn" onclick="disconnect()">斷開</button>
+        <div class="status disconnected" id="status">未連接</div>
+    </div>
+
+    <!-- 按鈕狀態面板 -->
+    <div class="panel">
+        <h3>🎛️ 按鈕狀態</h3>
+        <div class="matrix" id="buttonMatrix">
+            <div class="btn" id="btn0">1</div>
+            <div class="btn" id="btn1">2</div>
+            <div class="btn" id="btn2">3</div>
+            <div class="btn" id="btn3">4</div>
+            <div class="btn" id="btn4">5</div>
+            <div class="btn" id="btn5">6</div>
+            <div class="btn" id="btn6">7</div>
+            <div class="btn" id="btn7">8</div>
+            <div class="btn" id="btn8">9</div>
+        </div>
+        <div class="controls">
+            <button id="resetBtn" class="danger">重置</button>
+            <button id="gameBtn" class="primary">遊戲選擇</button>
+            <button id="confirmBtn" class="success">確認</button>
+        </div>
+    </div>
+
+    <!-- 遊戲控制面板 -->
+    <div class="panel">
+        <h3>🎮 遊戲控制</h3>
+        <div class="controls">
+            <button class="primary" onclick="toggleMonitoring()">開始遊戲監控</button>
+            <button class="success" onclick="startCurrentGame()">開始遊戲</button>
+            <button class="danger" onclick="resetCurrentGame()">重置遊戲</button>
+        </div>
+        <div id="gameArea"></div>
+    </div>
+
+    <!-- 遊戲選擇彈出視窗 -->
+    <div class="game-selector-overlay" id="gameSelectorOverlay">
+        <div class="game-selector">
+            <h2>🎮 選擇遊戲模式</h2>
+
+            <div class="selector-instructions">
+                <div class="instruction-title">操作說明</div>
+                <div class="instruction-text">
+                    使用數字鍵 1-3 選擇遊戲，然後按確認鍵開始
+                </div>
+            </div>
+
+            <div class="game-options" id="gameOptions">
+                <div class="game-option" data-game="0">
+                    <div class="game-number">1</div>
+                    <div class="number-key-hint">按 1</div>
+                    <div class="game-icon">⭕</div>
+                    <div class="game-name">井字遊戲</div>
+                    <div class="game-description">經典的三連線遊戲，與電腦對戰</div>
+                </div>
+
+                <div class="game-option" data-game="1">
+                    <div class="game-number">2</div>
+                    <div class="number-key-hint">按 2</div>
+                    <div class="game-icon">🧠</div>
+                    <div class="game-name">記憶遊戲</div>
+                    <div class="game-description">記住按鈕序列並正確重複</div>
+                </div>
+
+                <div class="game-option" data-game="2">
+                    <div class="game-number">3</div>
+                    <div class="number-key-hint">按 3</div>
+                    <div class="game-icon">⚡</div>
+                    <div class="game-name">反應遊戲</div>
+                    <div class="game-description">測試你的反應速度和專注力</div>
+                </div>
+
+            </div>
+
+            <div class="selector-controls">
+                <button class="selector-btn confirm" onclick="confirmGameSelection()">
+                    ✅ 確認選擇
+                </button>
+                <button class="selector-btn cancel" onclick="closeGameSelector()">
+                    ❌ 取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 調試面板 -->
+    <div class="debug-panel" id="debugPanel">
+        <h3>🔧 調試工具</h3>
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <button onclick="testAllButtons()" class="primary">測試所有按鈕</button>
+            <button onclick="clearEventQueue()" class="danger">清除事件隊列</button>
+            <button onclick="toggleDebugMode()" class="success">切換調試模式</button>
+        </div>
+        <div id="debugInfo">
+            調試資訊將顯示在這裡...
+        </div>
+    </div>
+
+    <script src="games.js"></script>
+    <script>
+        class ArduinoController {
+            constructor() {
+                this.ip = '';
+                this.connected = false;
+                this.monitoring = false;
+                this.interval = null;
+                this.gameEngine = new GameEngine();
+                this.lastButtonStates = Array(9).fill(false);
+                this.lastSpecialStates = { reset: false, gameSelect: false, confirm: false };
+                this.requestCount = 0;
+                this.connectionTime = null;
+                this.gameSelectorOpen = false;
+                this.selectedGameId = 0;
+                this.gameSelectorTimeout = null;
+                this.buttonEventQueue = [];
+                this.processingEvents = false;
+                this.connectionRetries = 0;
+                this.maxRetries = 3;
+            }
+
+            updateConnectionButtons(connected) {
+                const connectBtn = document.getElementById('connectBtn');
+                const disconnectBtn = document.getElementById('disconnectBtn');
+
+                if (connectBtn) {
+                    connectBtn.disabled = connected;
+                    connectBtn.textContent = connected ? '已連接' : '連接';
+                }
+
+                if (disconnectBtn) {
+                    disconnectBtn.disabled = !connected;
+                }
+            }
+
+            async connect() {
+                this.ip = document.getElementById('ip').value.trim();
+                if (!this.ip) {
+                    this.updateStatus('請輸入 Arduino IP 地址', 'disconnected');
+                    return;
+                }
+
+                this.connectionRetries = 0;
+                this.updateConnectionButtons(false); // 禁用連接按鈕
+                await this.attemptConnection();
+            }
+
+            async attemptConnection() {
+                try {
+                    this.updateStatus(`正在連接... (嘗試 ${this.connectionRetries + 1}/${this.maxRetries})`, 'connecting');
+                    console.log(`🔌 嘗試連接到: http://${this.ip}`);
+
+                    // 先發送 OPTIONS 請求檢查 CORS
+                    try {
+                        const optionsResponse = await fetch(`http://${this.ip}/`, {
+                            method: 'OPTIONS',
+                            mode: 'cors',
+                            headers: {
+                                'Access-Control-Request-Method': 'GET',
+                                'Access-Control-Request-Headers': 'Content-Type'
+                            }
+                        });
+                        console.log('✅ OPTIONS 請求成功');
+                    } catch (optionsError) {
+                        console.warn('⚠️ OPTIONS 請求失敗，繼續嘗試 GET:', optionsError);
+                    }
+
+                    // 等待一小段時間再發送主要請求
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
+                    // 發送主要連接請求
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => {
+                        console.log('⏰ 連接超時，中止請求');
+                        controller.abort();
+                    }, 10000); // 延長超時時間到 10 秒
+
+                    const response = await fetch(`http://${this.ip}/`, {
+                        method: 'GET',
+                        mode: 'cors',
+                        signal: controller.signal,
+                        headers: {
+                            'Accept': 'text/plain, */*',
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache'
+                        }
+                    });
+
+                    clearTimeout(timeoutId);
+
+                    console.log(`📡 收到回應: ${response.status} ${response.statusText}`);
+
+                    if (response.ok) {
+                        const result = await response.text();
+                        console.log('📥 Arduino 回應內容:', result);
+
+                        // 檢查回應內容
+                        if (result.includes('Arduino') || result.includes('Ready') || result.includes('Controller')) {
+                            // 連接成功，等待一秒再開始監控
+                            this.connected = true;
+                            this.connectionTime = new Date();
+                            this.timeoutCount = 0; // 重置超時計數
+
+                            this.updateStatus(`✅ 連接成功 - ${this.ip}`, 'connected');
+                            this.updateConnectionButtons(true);
+
+                            // 延遲啟動監控，確保 Arduino 準備就緒
+                            setTimeout(() => {
+                                if (this.connected) {
+                                    this.startMonitoring();
+                                    console.log('🎮 開始監控 Arduino 輸入');
+                                }
+                            }, 1000);
+
+                            // 保存成功的 IP
+                            localStorage.setItem('lastArduinoIP', this.ip);
+                            return;
+                        } else {
+                            throw new Error(`意外的回應內容: ${result}`);
+                        }
+                    } else {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                } catch (error) {
+                    console.error('❌ 連接錯誤:', error);
+                    this.connectionRetries++;
+
+                    if (this.connectionRetries < this.maxRetries) {
+                        const delay = 3000; // 增加重試延遲
+                        this.updateStatus(`連接失敗，${delay / 1000}秒後重試... (${this.connectionRetries}/${this.maxRetries})`, 'connecting');
+                        setTimeout(() => {
+                            this.attemptConnection();
+                        }, delay);
+                    } else {
+                        this.handleConnectionFailure(error);
+                    }
+                }
+            }
+
+            async checkInput() {
+                if (!this.connected) return;
+
+                try {
+                    this.requestCount++;
+
+                    const response = await fetch(`http://${this.ip}/input`, {
+                        method: 'GET',
+                        mode: 'cors',
+                        signal: AbortSignal.timeout(5000), // 增加超時時間
+                        headers: {
+                            'Accept': 'application/json',
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const text = await response.text();
+
+                        let data;
+                        try {
+                            data = JSON.parse(text);
+                        } catch (parseError) {
+                            console.warn('⚠️ JSON 解析錯誤:', parseError, '原始文字:', text);
+                            return;
+                        }
+
+                        if (data && Array.isArray(data.buttons)) {
+                            this.processButtonEvents(data);
+                            this.updateButtonDisplay(data);
+
+                            // 重置超時計數
+                            this.timeoutCount = 0;
+                        } else {
+                            console.warn('⚠️ 無效的資料格式:', data);
+                        }
+
+                        // 每 100 次請求顯示一次狀態
+                        if (this.requestCount % 100 === 0) {
+                            this.updateStatus(`🔄 運行正常 - 請求: ${this.requestCount}`, 'connected');
+                        }
+                    } else {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                } catch (error) {
+                    if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+                        this.timeoutCount = (this.timeoutCount || 0) + 1;
+                        console.warn(`⏰ 請求超時 (${this.timeoutCount})`);
+
+                        // 連續超時太多次才斷開連接
+                        if (this.timeoutCount > 10) {
+                            console.error('💔 連續超時過多，斷開連接');
+                            this.handleConnectionLoss();
+                        }
+                    } else {
+                        console.warn('⚠️ 輸入檢查失敗:', error);
+                        this.handleConnectionLoss();
+                    }
+                }
+            }
+
+            startMonitoring() {
+                if (this.monitoring) {
+                    console.log('⚠️ 監控已在運行');
+                    return;
+                }
+
+                this.monitoring = true;
+                this.requestCount = 0;
+                this.timeoutCount = 0;
+
+                // 使用較低的頻率開始，然後逐漸調整
+                this.interval = setInterval(() => this.checkInput(), 150); // 減慢到 150ms
+                console.log('🎮 開始監控按鈕輸入 (間隔: 150ms)');
+            }
+
+            handleConnectionFailure(error) {
+                this.connected = false;
+                this.updateConnectionButtons(false);
+
+                let errorMessage = '';
+                if (error.name === 'AbortError') {
+                    errorMessage = `⏰ 連接超時 - 請檢查 ${this.ip} 是否正確且 Arduino 正在運行`;
+                } else if (error.message.includes('CORS')) {
+                    errorMessage = `🚫 CORS 錯誤 - 請重新啟動 Arduino 或檢查網路設定`;
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage = `🌐 無法連接到 ${this.ip} - 請檢查網路連接和 IP 地址`;
+                } else {
+                    errorMessage = `❌ 連接失敗: ${error.message}`;
+                }
+
+                this.updateStatus(errorMessage, 'disconnected');
+                console.error('❌ 連接失敗:', error);
+            }
+
+            async checkInput() {
+                if (!this.connected) return;
+
+                try {
+                    this.requestCount++;
+
+                    const response = await fetch(`http://${this.ip}/input`, {
+                        method: 'GET',
+                        mode: 'cors',
+                        signal: AbortSignal.timeout(5000), // 增加超時時間
+                        headers: {
+                            'Accept': 'application/json',
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const text = await response.text();
+
+                        let data;
+                        try {
+                            data = JSON.parse(text);
+                        } catch (parseError) {
+                            console.warn('⚠️ JSON 解析錯誤:', parseError, '原始文字:', text);
+                            return;
+                        }
+
+                        if (data && Array.isArray(data.buttons)) {
+                            this.processButtonEvents(data);
+                            this.updateButtonDisplay(data);
+
+                            // 重置超時計數
+                            this.timeoutCount = 0;
+                        } else {
+                            console.warn('⚠️ 無效的資料格式:', data);
+                        }
+
+                        // 每 100 次請求顯示一次狀態
+                        if (this.requestCount % 100 === 0) {
+                            this.updateStatus(`🔄 運行正常 - 請求: ${this.requestCount}`, 'connected');
+                        }
+                    } else {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                } catch (error) {
+                    if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+                        this.timeoutCount = (this.timeoutCount || 0) + 1;
+                        console.warn(`⏰ 請求超時 (${this.timeoutCount})`);
+
+                        // 連續超時太多次才斷開連接
+                        if (this.timeoutCount > 10) {
+                            console.error('💔 連續超時過多，斷開連接');
+                            this.handleConnectionLoss();
+                        }
+                    } else {
+                        console.warn('⚠️ 輸入檢查失敗:', error);
+                        this.handleConnectionLoss();
+                    }
+                }
+            }
+
+            processButtonEvents(data) {
+                const timestamp = Date.now();
+
+                data.buttons.forEach((current, i) => {
+                    if (current && !this.lastButtonStates[i]) {
+                        this.buttonEventQueue.push({
+                            type: 'button',
+                            index: i,
+                            timestamp: timestamp
+                        });
+                        console.log(`🔘 按鈕 ${i + 1} 被按下`);
+                    }
+                    this.lastButtonStates[i] = current;
+                });
+
+                ['reset', 'gameSelect', 'confirm'].forEach((key) => {
+                    const current = data[key];
+                    const last = this.lastSpecialStates[key];
+
+                    if (current && !last) {
+                        this.buttonEventQueue.push({
+                            type: 'special',
+                            key: key,
+                            timestamp: timestamp
+                        });
+                        console.log(`🔧 特殊按鈕 ${key} 被按下`);
+                    }
+                    this.lastSpecialStates[key] = current;
+                });
+
+                this.processEventQueue(data);
+            }
+
+            async processEventQueue(data) {
+                if (this.processingEvents || this.buttonEventQueue.length === 0) return;
+
+                this.processingEvents = true;
+
+                while (this.buttonEventQueue.length > 0) {
+                    const event = this.buttonEventQueue.shift();
+                    await this.handleSingleEvent(event, data);
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }
+
+                this.processingEvents = false;
+            }
+
+            async handleSingleEvent(event, data) {
+                try {
+                    if (event.type === 'button') {
+                        this.handleButtonPress(event.index, data);
+                    } else if (event.type === 'special') {
+                        this.handleSpecialButtonPress(event.key, data);
+                    }
+                } catch (error) {
+                    console.error('事件處理錯誤:', error, event);
+                }
+            }
+
+            handleButtonPress(buttonIndex, data) {
+                console.log(`處理按鈕 ${buttonIndex + 1} 按下事件`);
+                this.highlightButton(`btn${buttonIndex}`);
+
+                if (this.gameSelectorOpen) {
+                    if (buttonIndex < 4) {
+                        this.handleGameSelection(buttonIndex);
+                    }
+                    return;
+                }
+
+                if (this.gameEngine.currentGame) {
+                    this.gameEngine.currentGame.onButtonPress(buttonIndex);
+                }
+            }
+
+            handleSpecialButtonPress(key, data) {
+                console.log(`處理特殊按鈕 ${key} 按下事件`);
+
+                const buttonMap = {
+                    reset: 'resetBtn',
+                    gameSelect: 'gameBtn',
+                    confirm: 'confirmBtn'
+                };
+                this.highlightButton(buttonMap[key]);
+
+                switch (key) {
+                    case 'reset':
+                        if (this.gameSelectorOpen) {
+                            this.closeGameSelector();
+                        } else {
+                            this.gameEngine.resetGame();
+                        }
+                        break;
+
+                    case 'gameSelect':
+                        if (!this.gameSelectorOpen) {
+                            this.showGameSelector();
+                        } else {
+                            this.closeGameSelector();
+                        }
+                        break;
+
+                    case 'confirm':
+                        if (this.gameSelectorOpen) {
+                            this.confirmGameSelection();
+                        } else if (this.gameEngine.currentGame) {
+                            if (this.gameEngine.gameId === 3) {
+                                this.gameEngine.currentGame.submitGuess();
+                            } else {
+                                this.gameEngine.currentGame.start();
+                            }
+                        }
+                        break;
+                }
+            }
+
+            highlightButton(buttonId) {
+                const btn = document.getElementById(buttonId);
+                if (btn) {
+                    btn.classList.add('highlight');
+                    setTimeout(() => {
+                        btn.classList.remove('highlight');
+                    }, 300);
+                }
+            }
+
+            handleConnectionLoss() {
+                console.error('連接中斷');
+                this.connected = false;
+                this.stopMonitoring();
+                this.updateStatus('連接中斷', 'disconnected');
+                this.updateConnectionButtons(false);
+            }
+
+            startMonitoring() {
+                if (this.monitoring) {
+                    console.log('⚠️ 監控已在運行');
+                    return;
+                }
+
+                this.monitoring = true;
+                this.requestCount = 0;
+                this.timeoutCount = 0;
+
+                // 使用較低的頻率開始，然後逐漸調整
+                this.interval = setInterval(() => this.checkInput(), 150); // 減慢到 150ms
+                console.log('🎮 開始監控按鈕輸入 (間隔: 150ms)');
+            }
+
+            stopMonitoring() {
+                if (this.interval) {
+                    clearInterval(this.interval);
+                    this.interval = null;
+                }
+                this.monitoring = false;
+                console.log('停止監控');
+            }
+
+            disconnect() {
+                this.connected = false;
+                this.stopMonitoring();
+                this.updateStatus('已手動斷開', 'disconnected');
+                this.updateConnectionButtons(false);
+                console.log('手動斷開連接');
+            }
+
+            updateButtonDisplay(data) {
+                data.buttons.forEach((pressed, i) => {
+                    const btn = document.getElementById(`btn${i}`);
+                    if (btn) {
+                        btn.classList.toggle('active', pressed);
+                    }
+                });
+
+                this.updateSpecialButton('resetBtn', data.reset);
+                this.updateSpecialButton('gameBtn', data.gameSelect);
+                this.updateSpecialButton('confirmBtn', data.confirm);
+            }
+
+            updateSpecialButton(id, pressed) {
+                const btn = document.getElementById(id);
+                if (btn) {
+                    btn.classList.toggle('active', pressed);
+                }
+            }
+
+            updateStatus(message, type) {
+                const statusElement = document.getElementById('status');
+                if (statusElement) {
+                    statusElement.textContent = message;
+                    statusElement.classList.remove('connected', 'disconnected', 'connecting', 'error');
+
+                    switch (type) {
+                        case 'connected':
+                            statusElement.classList.add('connected');
+                            break;
+                        case 'connecting':
+                            statusElement.classList.add('connecting');
+                            break;
+                        case 'disconnected':
+                        case 'error':
+                            statusElement.classList.add('disconnected');
+                            break;
+                    }
+                }
+
+                const timestamp = new Date().toLocaleTimeString();
+                console.log(`[${timestamp}] ${message}`);
+            }
+
+            showGameSelector() {
+                console.log('🎮 顯示遊戲選擇界面');
+                this.gameSelectorOpen = true;
+                const overlay = document.getElementById('gameSelectorOverlay');
+                if (overlay) {
+                    overlay.classList.add('show');
+                }
+            }
+
+            closeGameSelector() {
+                console.log('🚪 關閉遊戲選擇界面');
+                this.gameSelectorOpen = false;
+                const overlay = document.getElementById('gameSelectorOverlay');
+                if (overlay) {
+                    overlay.classList.remove('show');
+                }
+            }
+
+            handleGameSelection(gameId) {
+                console.log(`🎯 選擇遊戲: ${gameId}`);
+                this.selectedGameId = gameId;
+            }
+
+            confirmGameSelection() {
+                console.log(`✅ 確認選擇遊戲: ${this.selectedGameId}`);
+                this.closeGameSelector();
+                this.gameEngine.switchGame(this.selectedGameId);
+            }
+        }
+
+        // 創建全域實例 - 移到頁面載入後
+        let arduino;
+
+        // 全域函數定義
+        function connect() {
+            if (arduino) arduino.connect();
+        }
+
+        function disconnect() {
+            if (arduino) arduino.disconnect();
+        }
+
+        function toggleMonitoring() {
+            if (arduino) {
+                if (arduino.monitoring) {
+                    arduino.stopMonitoring();
+                } else {
+                    arduino.startMonitoring();
+                }
+            }
+        }
+
+        function startCurrentGame() {
+            if (arduino && arduino.gameEngine) {
+                arduino.gameEngine.startGame();
+            }
+        }
+
+        function resetCurrentGame() {
+            if (arduino && arduino.gameEngine) {
+                arduino.gameEngine.resetGame();
+            }
+        }
+
+        function confirmGameSelection() {
+            if (arduino) arduino.confirmGameSelection();
+        }
+
+        function closeGameSelector() {
+            if (arduino) arduino.closeGameSelector();
+        }
+
+        function testAllButtons() {
+            console.log('🧪 測試所有按鈕...');
+            for (let i = 0; i < 9; i++) {
+                setTimeout(() => {
+                    if (arduino) arduino.highlightButton(`btn${i}`);
+                }, i * 200);
+            }
+        }
+
+        function clearEventQueue() {
+            if (arduino) {
+                arduino.buttonEventQueue = [];
+                console.log('🗑️ 事件隊列已清除');
+            }
+        }
+
+        function toggleDebugMode() {
+            if (arduino && arduino.gameEngine) {
+                arduino.gameEngine.debugMode = !arduino.gameEngine.debugMode;
+                console.log('🔧 調試模式:', arduino.gameEngine.debugMode ? '開啟' : '關閉');
+            }
+        }
+
+        function autoDetectIP() {
+            const lastSuccessfulIP = localStorage.getItem('lastArduinoIP');
+            const ipInput = document.getElementById('ip');
+            if (ipInput) {
+                if (lastSuccessfulIP) {
+                    ipInput.value = lastSuccessfulIP;
+                    console.log(`使用上次成功的 IP: ${lastSuccessfulIP}`);
+                } else if (typeof CONFIG !== 'undefined' && CONFIG.CONNECTION && CONFIG.CONNECTION.COMMON_IPS) {
+                    ipInput.value = CONFIG.CONNECTION.COMMON_IPS[0];
+                } else {
+                    ipInput.value = '192.168.137.200';
+                }
+            }
+        }
+
+        function addQuickConnectButtons() {
+            const connectPanel = document.querySelector('.panel');
+            if (!connectPanel) return;
+
+            const buttonContainer = document.createElement('div');
+            buttonContainer.style.marginTop = '10px';
+
+            const commonIPs = ['192.168.1.100', '192.168.4.1', '192.168.0.100', '192.168.137.200'];
+
+            buttonContainer.innerHTML = `
+        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+            <span style="align-self: center; margin-right: 10px;">快速連接:</span>
+            ${commonIPs.map(ip =>
+                `<button class="primary" style="padding: 5px 10px; font-size: 12px;"
+                 onclick="quickConnect('${ip}')">${ip}</button>`
+            ).join('')}
+        </div>
+    `;
+            connectPanel.appendChild(buttonContainer);
+        }
+
+        function quickConnect(ip) {
+            const ipInput = document.getElementById('ip');
+            if (ipInput) {
+                ipInput.value = ip;
+                if (arduino) arduino.connect();
+            }
+        }
+
+        function createButtonMatrix() {
+            const matrix = document.getElementById('buttonMatrix');
+            if (!matrix) return;
+
+            matrix.innerHTML = `
+        ${Array(9).fill(0).map((_, i) =>
+                `<div class="btn" id="btn${i}">${i + 1}</div>`
+            ).join('')}
+    `;
+
+            const controls = document.querySelector('.controls');
+            if (controls) {
+                controls.innerHTML = `
+            <button class="special-button reset-btn" id="resetBtn">重置</button>
+            <button class="special-button game-select-btn" id="gameBtn">遊戲選擇</button>
+            <button class="special-button confirm-btn" id="confirmBtn">確認</button>
+        `;
+            }
+        }
+
+        function createGameSelector() {
+            const selector = document.querySelector('.game-selector');
+            if (!selector) return;
+
+            const games = [
+                { id: 0, name: '井字遊戲', icon: '🎯', desc: '經典三子棋遊戲' },
+                { id: 1, name: '記憶遊戲', icon: '🧠', desc: '記住按鈕序列' },
+                { id: 2, name: '反應遊戲', icon: '⚡', desc: '測試反應速度' }
+            ];
+
+            selector.innerHTML = `
+        <h2>🎮 選擇遊戲</h2>
+        <div class="game-options">
+            ${games.map(game => `
+                <div class="game-option" data-game="${game.id}">
+                    <div class="game-number">${game.id + 1}</div>
+                    <div class="game-icon">${game.icon}</div>
+                    <div class="game-name">${game.name}</div>
+                    <div class="game-description">${game.desc}</div>
+                </div>
+            `).join('')}
+        </div>
+        <div class="selector-instructions">
+            <div class="instruction-title">🎯 操作說明</div>
+            <div class="instruction-text">
+                • 按數字鍵 1-3 選擇遊戲<br>
+                • 按確認鍵開始遊戲<br>
+                • 按重置鍵取消選擇
+            </div>
+        </div>
+    `;
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Arduino 遊戲控制器開始初始化...');
+
+            // 創建 Arduino 控制器實例
+            arduino = new ArduinoController();
+
+            // 初始化 UI 元素
+            createButtonMatrix();
+            createGameSelector();
+            autoDetectIP();
+            addQuickConnectButtons();
+
+            // 初始化遊戲
+            if (arduino.gameEngine) {
+                arduino.gameEngine.switchGame(0);
+            }
+
+            // 更新連接按鈕狀態
+            arduino.updateConnectionButtons(false);
+
+            console.log('Arduino 遊戲控制器初始化完成');
+        });
+    </script>
+</body>
+
+</html>
